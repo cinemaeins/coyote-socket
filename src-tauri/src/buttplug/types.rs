@@ -1,4 +1,20 @@
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::{OnceCell, RwLock};
+
+/// Advertised-device profile for the virtual Buttplug server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ButtplugAdvertisedDeviceProfile {
+    Generic,
+    LovenseHush,
+}
+
+impl Default for ButtplugAdvertisedDeviceProfile {
+    fn default() -> Self {
+        Self::Generic
+    }
+}
 
 /// Buttplug feature output types
 ///
@@ -45,7 +61,11 @@ impl Default for ConstrictionMethod {
 /// This determines how many features of each type the virtual Buttplug device
 /// will report as available.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ButtplugFeatureConfig {
+    /// Advertised-device profile. Generic preserves configurable feature counts.
+    #[serde(default)]
+    pub profile: ButtplugAdvertisedDeviceProfile,
     /// Number of Position features (default: 2)
     pub position: usize,
     /// Number of PositionWithDuration features (default: 2)
@@ -63,6 +83,7 @@ pub struct ButtplugFeatureConfig {
 impl Default for ButtplugFeatureConfig {
     fn default() -> Self {
         Self {
+            profile: ButtplugAdvertisedDeviceProfile::Generic,
             position: 0, // Not used - clients prefer LinearCmd (PositionWithDuration)
             position_with_duration: 2,
             vibrate: 2,
@@ -188,4 +209,20 @@ impl ButtplugLinkConfig {
             || self.oscillate_feature.is_some()
             || self.constrict_feature.is_some()
     }
+}
+
+static BUTTPLUG_CONFIG: OnceCell<Arc<RwLock<ButtplugFeatureConfig>>> = OnceCell::const_new();
+
+pub async fn get_buttplug_config_state() -> &'static Arc<RwLock<ButtplugFeatureConfig>> {
+    BUTTPLUG_CONFIG
+        .get_or_init(|| async { Arc::new(RwLock::new(ButtplugFeatureConfig::default())) })
+        .await
+}
+
+pub async fn get_buttplug_config() -> ButtplugFeatureConfig {
+    get_buttplug_config_state().await.read().await.clone()
+}
+
+pub async fn set_buttplug_config(config: ButtplugFeatureConfig) {
+    *get_buttplug_config_state().await.write().await = config;
 }

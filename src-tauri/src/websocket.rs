@@ -366,10 +366,10 @@ async fn handle_buttplug_text_message(text: &str) -> Option<String> {
     use crate::buttplug::messages::{
         parse_buttplug_messages, serialize_buttplug_messages, ButtplugError, ButtplugServerMessage,
     };
-    use crate::buttplug::types::ButtplugFeatureConfig;
+    use crate::buttplug::types::get_buttplug_config;
 
     let protocol_version = 2; // Support Buttplug v2
-    let config = ButtplugFeatureConfig::default(); // TODO: Load from settings
+    let config = get_buttplug_config().await;
 
     match parse_buttplug_messages(text) {
         Ok(messages) => {

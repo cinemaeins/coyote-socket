@@ -3,7 +3,7 @@
 /// Processes incoming Buttplug messages and generates appropriate responses.
 /// Handles handshake, device enumeration, and command processing.
 use crate::buttplug::messages::*;
-use crate::buttplug::types::ButtplugFeatureConfig;
+use crate::buttplug::types::{ButtplugAdvertisedDeviceProfile, ButtplugFeatureConfig};
 use crate::emit_buttplug_features;
 use crate::processing::get_processing_state;
 
@@ -104,13 +104,20 @@ fn handle_request_device_list(
     })]
 }
 
+fn device_name(config: &ButtplugFeatureConfig) -> &'static str {
+    match config.profile {
+        ButtplugAdvertisedDeviceProfile::Generic => "CoyoteSocket",
+        ButtplugAdvertisedDeviceProfile::LovenseHush => "Lovense Hush",
+    }
+}
+
 /// Create DeviceAdded message based on feature configuration
 fn create_device_added(config: &ButtplugFeatureConfig, protocol_version: u32) -> DeviceAdded {
     let device_messages = build_device_messages(config, protocol_version);
 
     DeviceAdded {
         id: 0, // Server-initiated event
-        device_name: "CoyoteSocket".to_string(),
+        device_name: device_name(config).to_string(),
         device_index: 0,
         device_messages,
     }
@@ -121,7 +128,7 @@ fn create_device_info(config: &ButtplugFeatureConfig, protocol_version: u32) -> 
     let device_messages = build_device_messages(config, protocol_version);
 
     DeviceInfo {
-        device_name: "CoyoteSocket".to_string(),
+        device_name: device_name(config).to_string(),
         device_index: 0,
         device_messages,
     }
@@ -138,6 +145,15 @@ fn build_device_messages(
     config: &ButtplugFeatureConfig,
     _protocol_version: u32,
 ) -> DeviceMessagesV3 {
+    if config.profile == ButtplugAdvertisedDeviceProfile::LovenseHush {
+        let mut messages = DeviceMessagesV3::default();
+        messages.scalar_cmd = Some(vec![DeviceMessageAttributeV3::new(
+            "Vibrator", 100, "Vibrate",
+        )]);
+        messages.stop_device_cmd = Some(NullMessageAttributes::new());
+        return messages;
+    }
+
     let mut messages = DeviceMessagesV3::default();
     let mut scalar_features: Vec<DeviceMessageAttributeV3> = Vec::new();
 
@@ -418,6 +434,72 @@ fn handle_ping(req: Ping) -> Vec<ButtplugServerMessage> {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn test_scalar_vibrate_zero_updates_vibrate_zero() {
+        let config = ButtplugFeatureConfig {
+            profile: ButtplugAdvertisedDeviceProfile::LovenseHush,
+            ..ButtplugFeatureConfig::default()
+        };
+        let state = get_processing_state().await;
+        state.write().await.clear_all_buttplug_features();
+
+        let responses = handle_scalar_cmd(
+            ScalarCmd {
+                id: 42,
+                device_index: 0,
+                scalars: vec![ScalarValue {
+                    index: 0,
+                    scalar: 0.75,
+                    actuator_type: "Vibrate".to_string(),
+                }],
+            },
+            &config,
+        )
+        .await;
+
+        assert!(matches!(responses[0], ButtplugServerMessage::Ok(_)));
+        let features = state.read().await.get_buttplug_features();
+        assert_eq!(features.get("Vibrate_0"), Some(&0.75));
+    }
+
+    #[tokio::test]
+    async fn test_vibrate_cmd_zero_updates_vibrate_zero() {
+        let state = get_processing_state().await;
+        state.write().await.clear_all_buttplug_features();
+
+        let responses = handle_vibrate_cmd(VibrateCmd {
+            id: 43,
+            device_index: 0,
+            speeds: vec![VibrateSpeed {
+                index: 0,
+                speed: 0.5,
+            }],
+        })
+        .await;
+
+        assert!(matches!(responses[0], ButtplugServerMessage::Ok(_)));
+        let features = state.read().await.get_buttplug_features();
+        assert_eq!(features.get("Vibrate_0"), Some(&0.5));
+    }
+
+    #[tokio::test]
+    async fn test_stop_device_clears_output_state() {
+        let state = get_processing_state().await;
+        state
+            .write()
+            .await
+            .set_buttplug_feature("Vibrate_0".to_string(), 1.0);
+
+        let responses = handle_stop_device_cmd(StopDeviceCmd {
+            id: 44,
+            device_index: 0,
+        })
+        .await;
+
+        assert!(matches!(responses[0], ButtplugServerMessage::Ok(_)));
+        assert!(state.read().await.get_buttplug_features().is_empty());
+    }
+
     #[test]
     fn test_handshake_v3() {
         let req = RequestServerInfo {
@@ -468,6 +550,44 @@ mod tests {
 
         let responses = handle_start_scanning(req, &config, 2);
         assert_eq!(responses.len(), 3); // DeviceAdded + ScanningFinished + Ok
+    }
+
+    #[test]
+    fn test_lovense_hush_device_messages_v3() {
+        let config = ButtplugFeatureConfig {
+            profile: ButtplugAdvertisedDeviceProfile::LovenseHush,
+            ..ButtplugFeatureConfig::default()
+        };
+        let added = create_device_added(&config, 3);
+        assert_eq!(added.device_name, "Lovense Hush");
+        assert_eq!(added.device_index, 0);
+
+        let messages = build_device_messages(&config, 3);
+        assert!(messages.scalar_cmd.is_some());
+        assert!(messages.linear_cmd.is_none());
+        assert!(messages.rotate_cmd.is_none());
+        assert!(messages.stop_device_cmd.is_some());
+
+        let scalar = messages.scalar_cmd.unwrap();
+        assert_eq!(scalar.len(), 1);
+        assert_eq!(scalar[0].actuator_type, "Vibrate");
+    }
+
+    #[test]
+    fn test_device_list_and_scanning_match_profiles() {
+        let config = ButtplugFeatureConfig {
+            profile: ButtplugAdvertisedDeviceProfile::LovenseHush,
+            ..ButtplugFeatureConfig::default()
+        };
+
+        let added = create_device_added(&config, 3);
+        let listed = create_device_info(&config, 3);
+        assert_eq!(added.device_name, listed.device_name);
+        assert_eq!(added.device_index, listed.device_index);
+        assert_eq!(
+            added.device_messages.scalar_cmd.unwrap().len(),
+            listed.device_messages.scalar_cmd.unwrap().len()
+        );
     }
 
     #[test]
