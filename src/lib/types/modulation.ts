@@ -36,6 +36,7 @@ export type NoInputBehavior = 'hold' | 'default' | 'decay' | 'zero';
  * Note: Position (ScalarCmd) is not used - clients prefer LinearCmd (PositionWithDuration)
  */
 export type ButtplugFeatureType =
+  | 'Position'
   | 'PositionWithDuration'
   | 'Vibrate'
   | 'Rotate'

@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::buttplug::ButtplugFeatureConfig;
 use crate::processing::ProcessingEngineType;
 
 // ============================================================================
@@ -635,6 +636,8 @@ pub struct AppSettings {
     pub connection: ConnectionSettings,
     pub bluetooth: BluetoothSettings,
     pub output: OutputSettings,
+    #[serde(default)]
+    pub buttplug: ButtplugFeatureConfig,
     pub channel_a: ChannelSettings,
     pub channel_b: ChannelSettings,
     pub shortcuts: KeyboardShortcuts,
@@ -649,6 +652,7 @@ impl Default for AppSettings {
             connection: ConnectionSettings::default(),
             bluetooth: BluetoothSettings::default(),
             output: OutputSettings::default(),
+            buttplug: ButtplugFeatureConfig::default(),
             channel_a: ChannelSettings::default_for_channel('A'),
             channel_b: ChannelSettings::default_for_channel('B'),
             shortcuts: KeyboardShortcuts::default(),
@@ -693,6 +697,8 @@ struct LegacyAppSettings {
     pub connection: ConnectionSettings,
     pub bluetooth: BluetoothSettings,
     pub output: OutputSettings,
+    #[serde(default)]
+    pub buttplug: ButtplugFeatureConfig,
     pub channel_a: LegacyChannelSettings,
     pub channel_b: LegacyChannelSettings,
     pub shortcuts: KeyboardShortcuts,
@@ -706,6 +712,7 @@ impl LegacyAppSettings {
             connection: self.connection,
             bluetooth: self.bluetooth,
             output: self.output,
+            buttplug: self.buttplug,
             channel_a: self.channel_a.migrate('A'),
             channel_b: self.channel_b.migrate('B'),
             shortcuts: self.shortcuts,
@@ -1019,4 +1026,13 @@ pub async fn rename_preset(old_name: &str, new_name: &str) -> Result<(), String>
     } else {
         Err(format!("Preset '{}' not found", old_name))
     }
+}
+
+
+/// Update just Buttplug advertised-device settings
+pub async fn update_buttplug(buttplug: ButtplugFeatureConfig) -> Result<(), String> {
+    let state = init_settings().await;
+    let mut settings = state.write().await;
+    settings.buttplug = buttplug;
+    save_settings_to_disk(&settings)
 }

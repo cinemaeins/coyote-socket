@@ -17,7 +17,18 @@
   type FeatureKey = typeof featureTypes[number]['key'];
 
   // Calculate total features directly from store
-  $: totalFeatures = getTotalFeatureCount($buttplugSettings);
+  $: isLovenseHush = $buttplugSettings.profile === 'lovenseHush';
+  $: totalFeatures = isLovenseHush ? 1 : getTotalFeatureCount($buttplugSettings);
+
+  type ButtplugProfile = 'generic' | 'lovenseHush';
+
+  function setProfile(profile: ButtplugProfile) {
+    buttplugSettings.update(s => ({ ...s, profile }));
+  }
+
+  function handleProfileChange(event: Event) {
+    setProfile((event.currentTarget as HTMLSelectElement).value as ButtplugProfile);
+  }
 
   function addFeature(key: FeatureKey) {
     buttplugSettings.update(s => ({
@@ -36,12 +47,30 @@
 
 <div class="space-y-4">
   <div class="space-y-3">
-    <h3 class="text-sm font-medium text-foreground">Buttplug Features</h3>
+    <h3 class="text-sm font-medium text-foreground">Buttplug Advertised Device</h3>
     <p class="text-xs text-muted-foreground">
-      Configure which features to advertise to Buttplug clients. Each feature can be linked to channel parameters.
+      Choose the virtual device profile to advertise to Buttplug clients. Changing profiles may require reconnecting or rescanning in your Buttplug client.
     </p>
 
+
+    <div class="space-y-2">
+      <label class="text-xs font-medium text-muted-foreground" for="buttplug-profile">Device Profile</label>
+      <select
+        id="buttplug-profile"
+        class="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+        value={$buttplugSettings.profile}
+        on:change={handleProfileChange}
+      >
+        <option value="generic">Generic virtual device</option>
+        <option value="lovenseHush">Lovense Hush</option>
+      </select>
+      <p class="text-xs text-muted-foreground">
+        Lovense Hush advertises one Vibrate actuator and StopDeviceCmd only.
+      </p>
+    </div>
+
     <!-- Feature Count Configuration -->
+    {#if !isLovenseHush}
     <div class="space-y-2">
       {#each featureTypes as type}
         <div class="flex items-center justify-between py-2 border-b border-border last:border-0">
@@ -79,6 +108,11 @@
         </div>
       {/each}
     </div>
+    {:else}
+      <div class="rounded border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+        Manual feature counts are disabled for Lovense Hush because its profile must advertise exactly one Vibrate actuator.
+      </div>
+    {/if}
 
     <!-- Total Features Counter -->
     <div class="flex items-center justify-between pt-3 border-t border-border">
@@ -96,7 +130,7 @@
 
   <div class="pt-3 border-t border-border">
     <p class="text-xs text-muted-foreground">
-      Features can be linked to channel parameters in the linking panel. Default configuration provides 2 of each type (12 total features). Click [+] to add more features of a type, or hover over feature numbers beyond the default to remove them.
+      Features can be linked to channel parameters in the linking panel. Generic mode preserves the configurable feature counts. Click [+] to add more features of a type, or hover over feature numbers beyond the default to remove them.
     </p>
   </div>
 </div>

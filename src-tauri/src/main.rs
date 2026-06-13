@@ -627,6 +627,7 @@ async fn sync_settings_to_state(settings: &AppSettings) {
 async fn get_app_settings() -> Result<AppSettings, String> {
     let settings = settings::get_settings().await;
     sync_settings_to_state(&settings).await;
+    crate::buttplug::types::set_buttplug_config(settings.buttplug.clone()).await;
     Ok(settings)
 }
 
@@ -634,7 +635,17 @@ async fn get_app_settings() -> Result<AppSettings, String> {
 async fn save_app_settings(settings: AppSettings) -> Result<String, String> {
     settings::update_settings(settings.clone()).await?;
     sync_settings_to_state(&settings).await;
+    crate::buttplug::types::set_buttplug_config(settings.buttplug).await;
     Ok("Settings saved".to_string())
+}
+
+#[tauri::command]
+async fn save_buttplug_settings(
+    settings: crate::buttplug::ButtplugFeatureConfig,
+) -> Result<String, String> {
+    crate::buttplug::types::set_buttplug_config(settings.clone()).await;
+    settings::update_buttplug(settings).await?;
+    Ok("Buttplug settings saved".to_string())
 }
 
 #[tauri::command]
@@ -1343,6 +1354,7 @@ fn main() {
             // Settings commands
             get_app_settings,
             save_app_settings,
+            save_buttplug_settings,
             save_channel_settings,
             update_channel_config,
             save_output_settings,

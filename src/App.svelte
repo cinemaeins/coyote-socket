@@ -26,6 +26,7 @@
   import { outputOptions, connectionStatus, PROCESSING_ENGINES, PEAK_FILL_STRATEGIES, type ProcessingEngine, type PeakFillStrategy } from './lib/stores/connection.js';
   import { channelA, channelB } from './lib/stores/channels.js';
   import { generalSettings } from './lib/stores/generalSettings.js';
+  import { setButtplugSettings } from './lib/stores/buttplugSettings.js';
   import { startInputTracking, stopInputTracking } from './lib/stores/inputPosition.js';
   import {
     startStateSync,
@@ -350,6 +351,9 @@
         processingEngine: (settings.output.processingEngine as ProcessingEngine) ?? 'v1',
         peakFill: (settings.output.peakFill as PeakFillStrategy) ?? 'forward'
       };
+
+      // Apply Buttplug advertised-device settings
+      setButtplugSettings(settings.buttplug);
 
       // Apply channel A settings with new ParameterSource format
       const freqA = settings.channelA.frequencySource;

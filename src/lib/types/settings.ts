@@ -4,6 +4,7 @@
  */
 
 import type { ParameterSource, CurveType, ButtplugLinks } from './modulation.js';
+import type { ButtplugFeatureConfig } from './buttplug.js';
 
 export interface SavedBluetoothDevice {
     address: string;
@@ -177,6 +178,7 @@ export interface AppSettings {
     connection: ConnectionSettings;
     bluetooth: BluetoothSettings;
     output: OutputSettings;
+    buttplug: ButtplugFeatureConfig;
     channelA: ChannelSettings;
     channelB: ChannelSettings;
     shortcuts: KeyboardShortcuts;

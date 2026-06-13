@@ -8,6 +8,7 @@
  * Note: Position (ScalarCmd) is not used - clients prefer LinearCmd (PositionWithDuration)
  */
 export type ButtplugFeatureType =
+  | 'Position'
   | 'PositionWithDuration'
   | 'Vibrate'
   | 'Rotate'
@@ -18,7 +19,10 @@ export type ButtplugFeatureType =
  * Configuration for how many of each feature type to advertise
  * Default: 2 of each type (12 total features)
  */
+export type ButtplugAdvertisedDeviceProfile = 'generic' | 'lovenseHush';
+
 export interface ButtplugFeatureConfig {
+  profile: ButtplugAdvertisedDeviceProfile;
   position: number;              // Position feature count
   positionWithDuration: number;  // PositionWithDuration feature count
   vibrate: number;               // Vibrate feature count
@@ -63,6 +67,7 @@ export interface ButtplugLinkConfig {
  * Note: position=0 because clients prefer LinearCmd (PositionWithDuration)
  */
 export const defaultButtplugFeatureConfig: ButtplugFeatureConfig = {
+  profile: 'generic',
   position: 0,
   positionWithDuration: 2,
   vibrate: 2,
